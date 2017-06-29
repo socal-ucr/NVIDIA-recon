@@ -3,12 +3,12 @@ dist: xenial
 sudo: required
 
 before_install:
-  echo "Installing CUDA"
-  source scripts/install-cuda.sh
+  - echo "Installing CUDA"
+  - source scripts/install-cuda.sh
 
 install:
-  nvcc --version
+  - nvcc --version
 
 script:
-  tests/gate.sh
-  echo "Success"
+  - tests/gate.sh
+  - echo "Success"
