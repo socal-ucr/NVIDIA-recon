@@ -1,0 +1,4 @@
+language: generic
+dist: xenial
+script:
+  echo "Success"
