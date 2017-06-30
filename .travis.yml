@@ -1,4 +1,17 @@
 language: generic
 dist: xenial
+sudo: required
+
+before_install:
+  - source scripts/install-cuda.sh
+
+install:
+  - nvcc --version
+
 script:
-  echo "Success"
+  - source tests/gate.sh
+
+notifications:
+  slack:
+    on_success: always
+    on_failure: always
