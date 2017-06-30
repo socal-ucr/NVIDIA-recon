@@ -3,12 +3,15 @@ dist: xenial
 sudo: required
 
 before_install:
-  - echo "Installing CUDA"
   - source scripts/install-cuda.sh
 
 install:
   - nvcc --version
 
 script:
-  - tests/gate.sh
-  - echo "Success"
+  - source tests/gate.sh
+
+notifications:
+  slack:
+    on_success: always
+    on_failure: always
