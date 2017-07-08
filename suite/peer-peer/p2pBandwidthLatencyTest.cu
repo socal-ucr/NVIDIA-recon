@@ -52,7 +52,7 @@ void checkP2Paccess(int numGPUs)
 void outputBandwidthMatrix(int numGPUs, bool p2p)
 {
     int numElems=10000000;
-    int repeat=5;
+    int repeat=10;
     vector<int *> buffers(numGPUs);
     vector<cudaEvent_t> start(numGPUs);
     vector<cudaEvent_t> stop(numGPUs);
@@ -152,7 +152,7 @@ void outputBandwidthMatrix(int numGPUs, bool p2p)
 void outputBidirectionalBandwidthMatrix(int numGPUs, bool p2p)
 {
     int numElems=10000000;
-    int repeat=5;
+    int repeat=10;
     vector<int *> buffers(numGPUs);
     vector<cudaEvent_t> start(numGPUs);
     vector<cudaEvent_t> stop(numGPUs);
@@ -290,7 +290,7 @@ void outputLatencyMatrix(int numGPUs, bool p2p)
 
     for (int i=0; i<numGPUs; i++)
     {
-        cudaSetDevice(i);
+        cudaSetDevice(g[i]);
 
         for (int j=0; j<numGPUs; j++)
         {
