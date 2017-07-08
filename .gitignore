@@ -4,3 +4,6 @@
 *.ptx
 *.cubin
 *.fatbin
+*.o
+add
+p2pBandwidthLatencyTest
