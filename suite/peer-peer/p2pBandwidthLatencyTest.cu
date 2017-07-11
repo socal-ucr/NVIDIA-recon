@@ -4,8 +4,7 @@
 
 using namespace std;
 
-int numGPUs = 3;
-int g[] = {0, 1, 5};
+vector<int> g; //specify GPUs to be used in the test
 
 const char *sSampleName = "P2P (Peer-to-Peer) GPU Bandwidth Latency Test";
 
@@ -77,41 +76,44 @@ void outputBandwidthMatrix(int numGPUs, bool p2p)
         for (int j=0; j<numGPUs; j++)
         {
             int access;
-            if(p2p) {
-                cudaDeviceCanAccessPeer(&access,g[i],g[j]);
-                if (access)
+            if (i!=j)
+            {
+                if(p2p)
                 {
-                    cudaDeviceEnablePeerAccess(g[j],0 );
+                    cudaDeviceCanAccessPeer(&access,g[i],g[j]);
+                    if (access)
+                    {
+                        cudaDeviceEnablePeerAccess(g[j],0 );
+                        cudaCheckError();
+                    }
+                }
+
+                cudaDeviceSynchronize();
+                cudaCheckError();
+                delay<<<1,1>>>(NULL);
+                cudaEventRecord(start[i]);
+
+                for (int r=0; r<repeat; r++)
+                    cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],
+                                        sizeof(int)*numElems);
+
+                cudaEventRecord(stop[i]);
+                cudaDeviceSynchronize();
+                cudaCheckError();
+
+                float time_ms;
+                cudaEventElapsedTime(&time_ms,start[i],stop[i]);
+                double time_s=time_ms/1e3;
+
+                double gb=numElems*sizeof(int)*repeat/(double)1e9;
+
+                bandwidthMatrix[i*numGPUs+j]=gb/time_s;
+
+                if (p2p && access)
+                {
+                    cudaDeviceDisablePeerAccess(g[j]);
                     cudaCheckError();
                 }
-            }
-
-            cudaDeviceSynchronize();
-            cudaCheckError();
-            delay<<<1,1>>>(NULL);
-            cudaEventRecord(start[i]);
-
-            for (int r=0; r<repeat; r++)
-            {
-                cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],
-                                    sizeof(int)*numElems);
-            }
-
-            cudaEventRecord(stop[i]);
-            cudaDeviceSynchronize();
-            cudaCheckError();
-
-            float time_ms;
-            cudaEventElapsedTime(&time_ms,start[i],stop[i]);
-            double time_s=time_ms/1e3;
-
-            double gb=numElems*sizeof(int)*repeat/(double)1e9;
-            if(i==j) gb*=2;  //must count both the read and the write here
-            bandwidthMatrix[i*numGPUs+j]=gb/time_s;
-            if (p2p && access)
-            {
-                cudaDeviceDisablePeerAccess(g[j]);
-                cudaCheckError();
             }
         }
     }
@@ -119,9 +121,7 @@ void outputBandwidthMatrix(int numGPUs, bool p2p)
     printf("   D\\D");
 
     for (int j=0; j<numGPUs; j++)
-    {
         printf("%6d ", g[j]);
-    }
 
     printf("\n");
 
@@ -130,9 +130,10 @@ void outputBandwidthMatrix(int numGPUs, bool p2p)
         printf("%6d ",g[i]);
 
         for (int j=0; j<numGPUs; j++)
-        {
-            printf("%6.02f ", bandwidthMatrix[i*numGPUs+j]);
-        }
+            if (i == j)
+                printf("%6c", 'X');
+            else
+                printf("%6.02f ", bandwidthMatrix[i*numGPUs+j]);
 
         printf("\n");
     }
@@ -183,50 +184,51 @@ void outputBidirectionalBandwidthMatrix(int numGPUs, bool p2p)
         for (int j=0; j<numGPUs; j++)
         {
             int access;
-            if(p2p) {
-                cudaDeviceCanAccessPeer(&access,g[i],g[j]);
-                if (access)
+            if (i != j) {
+                if(p2p) {
+                    cudaDeviceCanAccessPeer(&access,g[i],g[j]);
+                    if (access)
+                    {
+                        cudaSetDevice(g[i]);
+                        cudaDeviceEnablePeerAccess(g[j],0);
+                        cudaCheckError();
+                        cudaSetDevice(g[j]);
+                        cudaDeviceEnablePeerAccess(g[i],0);
+                        cudaCheckError();
+                    }
+                }
+
+                cudaSetDevice(g[i]);
+                cudaDeviceSynchronize();
+                cudaCheckError();
+                delay<<<1,1>>>(NULL);
+                cudaEventRecord(start[i]);
+
+                for (int r=0; r<repeat; r++)
+                {
+                    cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],
+                                        sizeof(int)*numElems,stream0[i]);
+                    cudaMemcpyPeerAsync(buffers[j],g[j],buffers[i],g[i],
+                                        sizeof(int)*numElems,stream1[i]);
+                }
+
+                cudaEventRecord(stop[i]);
+                cudaDeviceSynchronize();
+                cudaCheckError();
+
+                float time_ms;
+                cudaEventElapsedTime(&time_ms,start[i],stop[i]);
+                double time_s=time_ms/1e3;
+
+                double gb=2.0*numElems*sizeof(int)*repeat/(double)1e9;
+                bandwidthMatrix[i*numGPUs+j]=gb/time_s;
+                if(p2p && access)
                 {
                     cudaSetDevice(g[i]);
-                    cudaDeviceEnablePeerAccess(g[j],0);
-                    cudaCheckError();
+                    cudaDeviceDisablePeerAccess(g[j]);
                     cudaSetDevice(g[j]);
-                    cudaDeviceEnablePeerAccess(g[i],0);
-                    cudaCheckError();
+                    cudaDeviceDisablePeerAccess(g[i]);
                 }
-            }
-
-            cudaSetDevice(g[i]);
-            cudaDeviceSynchronize();
-            cudaCheckError();
-            delay<<<1,1>>>(NULL);
-            cudaEventRecord(start[i]);
-
-            for (int r=0; r<repeat; r++)
-            {
-                cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],
-                                    sizeof(int)*numElems,stream0[i]);
-                cudaMemcpyPeerAsync(buffers[j],g[j],buffers[i],g[i],
-                                    sizeof(int)*numElems,stream1[i]);
-            }
-
-            cudaEventRecord(stop[i]);
-            cudaDeviceSynchronize();
-            cudaCheckError();
-
-            float time_ms;
-            cudaEventElapsedTime(&time_ms,start[i],stop[i]);
-            double time_s=time_ms/1e3;
-
-            double gb=2.0*numElems*sizeof(int)*repeat/(double)1e9;
-            if(i==j) gb*=2;  //must count both the read and the write here
-            bandwidthMatrix[i*numGPUs+j]=gb/time_s;
-            if(p2p && access)
-            {
-                cudaSetDevice(g[i]);
-                cudaDeviceDisablePeerAccess(g[j]);
-                cudaSetDevice(g[j]);
-                cudaDeviceDisablePeerAccess(g[i]);
             }
         }
     }
@@ -234,9 +236,7 @@ void outputBidirectionalBandwidthMatrix(int numGPUs, bool p2p)
     printf("   D\\D");
 
     for (int j=0; j<numGPUs; j++)
-    {
         printf("%6d ", g[j]);
-    }
 
     printf("\n");
 
@@ -245,9 +245,10 @@ void outputBidirectionalBandwidthMatrix(int numGPUs, bool p2p)
         printf("%6d ",g[i]);
 
         for (int j=0; j<numGPUs; j++)
-        {
-            printf("%6.02f ", bandwidthMatrix[i*numGPUs+j]);
-        }
+            if (i == j)
+                printf("%6c", 'X');
+            else
+                printf("%6.02f ", bandwidthMatrix[i*numGPUs+j]);
 
         printf("\n");
     }
@@ -294,36 +295,35 @@ void outputLatencyMatrix(int numGPUs, bool p2p)
 
         for (int j=0; j<numGPUs; j++)
         {
-            int access;
-            if(p2p) {
-                cudaDeviceCanAccessPeer(&access,g[i],g[j]);
-                if (access)
-                {
-                    cudaDeviceEnablePeerAccess(g[j],0);
-                    cudaCheckError();
+            if (i != j)
+            {
+                int access;
+                if(p2p) {
+                    cudaDeviceCanAccessPeer(&access,g[i],g[j]);
+                    if (access)
+                    {
+                        cudaDeviceEnablePeerAccess(g[j],0);
+                        cudaCheckError();
+                    }
                 }
-            }
-            cudaDeviceSynchronize();
-            cudaCheckError();
-            delay<<<1,1>>>(NULL);
-            cudaEventRecord(start[i]);
+                cudaDeviceSynchronize();
+                cudaCheckError();
+                delay<<<1,1>>>(NULL);
+                cudaEventRecord(start[i]);
 
-            for (int r=0; r<repeat; r++)
-            {
-                cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],1);
-            }
+                for (int r=0; r<repeat; r++)
+                    cudaMemcpyPeerAsync(buffers[i],g[i],buffers[j],g[j],1);
 
-            cudaEventRecord(stop[i]);
-            cudaDeviceSynchronize();
-            cudaCheckError();
+                cudaEventRecord(stop[i]);
+                cudaDeviceSynchronize();
+                cudaCheckError();
 
-            float time_ms;
-            cudaEventElapsedTime(&time_ms,start[i],stop[i]);
+                float time_ms;
+                cudaEventElapsedTime(&time_ms,start[i],stop[i]);
 
-            latencyMatrix[i*numGPUs+j]=time_ms*1e3/repeat;
-            if(p2p && access)
-            {
-                cudaDeviceDisablePeerAccess(g[j]);
+                latencyMatrix[i*numGPUs+j]=time_ms*1e3/repeat;
+                if(p2p && access)
+                    cudaDeviceDisablePeerAccess(g[j]);
             }
         }
     }
@@ -331,9 +331,7 @@ void outputLatencyMatrix(int numGPUs, bool p2p)
     printf("   D\\D");
 
     for (int j=0; j<numGPUs; j++)
-    {
         printf("%6d ", g[j]);
-    }
 
     printf("\n");
 
@@ -342,9 +340,10 @@ void outputLatencyMatrix(int numGPUs, bool p2p)
         printf("%6d ",g[i]);
 
         for (int j=0; j<numGPUs; j++)
-        {
-            printf("%6.02f ", latencyMatrix[i*numGPUs+j]);
-        }
+            if (i == j)
+                printf("%6c", 'X');
+            else
+                printf("%6.02f ", latencyMatrix[i*numGPUs+j]);
 
         printf("\n");
     }
@@ -363,8 +362,15 @@ void outputLatencyMatrix(int numGPUs, bool p2p)
 
 int main(int argc, char **argv)
 {
-
-    //cudaGetDeviceCount(&numGPUs);
+    int numGPUs;
+    if (g.size() == 0)
+    {
+        cudaGetDeviceCount(&numGPUs);
+        for (int i=0; i<numGPUs; i++)
+            g.push_back(i);
+    }
+    else
+        numGPUs = sizeof(g)/sizeof(g[0]);
 
     printf("[%s]\n", sSampleName);
 
@@ -385,9 +391,7 @@ int main(int argc, char **argv)
     printf("     D\\D");
 
     for (int j=0; j<numGPUs; j++)
-    {
         printf("%6d", g[j]);
-    }
     printf("\n");
 
     for (int i=0; i<numGPUs; i++)
@@ -417,7 +421,6 @@ int main(int argc, char **argv)
     outputBidirectionalBandwidthMatrix(numGPUs, false);
     printf("Bidirectional P2P=Enabled Bandwidth Matrix (GB/s)\n");
     outputBidirectionalBandwidthMatrix(numGPUs, true);
-
 
     printf("P2P=Disabled Latency Matrix (us)\n");
     outputLatencyMatrix(numGPUs, false);
