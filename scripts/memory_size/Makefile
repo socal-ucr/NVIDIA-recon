@@ -237,7 +237,7 @@ endif
 # Target rules
 all: build
 
-build: p2pBandwidthLatencyTest
+build: memory_size
 
 check.deps:
 ifeq ($(SAMPLE_ENABLED),0)
@@ -246,16 +246,16 @@ else
 	@echo "Sample is ready - all dependencies have been met"
 endif
 
-p2pBandwidthLatencyTest.o:p2pBandwidthLatencyTest.cu
+memory_size.o:memory_size.cu
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
-p2pBandwidthLatencyTest: p2pBandwidthLatencyTest.o
+memory_size: memory_size.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
 run: build
-	$(EXEC) ./p2pBandwidthLatencyTest
+	$(EXEC) ./memory_size
 
 clean:
-	rm -f p2pBandwidthLatencyTest p2pBandwidthLatencyTest.o
+	rm -f memory_size memory_size.o
 
 clobber: clean

@@ -7,3 +7,4 @@
 *.o
 add
 p2pBandwidthLatencyTest
+memory_size
