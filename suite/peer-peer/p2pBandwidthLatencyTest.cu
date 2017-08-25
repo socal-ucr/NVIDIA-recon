@@ -4,7 +4,9 @@
 
 using namespace std;
 
-vector<int> g; //specify GPUs to be used in the test
+const int GPUs[] = {}; //specify GPUs to be used in the test
+
+vector<int> g(GPUs, GPUs + sizeof(GPUs)/sizeof(int));
 
 const char *sSampleName = "P2P (Peer-to-Peer) GPU Bandwidth Latency Test";
 
@@ -365,12 +367,13 @@ int main(int argc, char **argv)
     int numGPUs;
     if (g.size() == 0)
     {
+        printf("Using all 8 GPUs\n");
         cudaGetDeviceCount(&numGPUs);
         for (int i=0; i<numGPUs; i++)
             g.push_back(i);
     }
     else
-        numGPUs = sizeof(g)/sizeof(g[0]);
+        numGPUs = g.size();
 
     printf("[%s]\n", sSampleName);
 
